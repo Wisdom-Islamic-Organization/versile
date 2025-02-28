@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image, Dimensions } from 'react-native';
+
+const DEVICE_WIDTH = Dimensions.get('window').width;
 
 const LoaderLogo = () => {
   return (
@@ -17,8 +19,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   image: {
-    width: 300,
-    height: 300,
+    width: DEVICE_WIDTH < 500 ? DEVICE_WIDTH * 0.3 : 300,
+    height: DEVICE_WIDTH < 500 ? DEVICE_WIDTH * 0.3 : 300,
     resizeMode: 'contain'
   }
 });

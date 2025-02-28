@@ -30,6 +30,13 @@ const LoginScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background[theme] }]}>
+      <View style={styles.bannerContainer}>
+        <Image 
+          source={require('../../assets/images/banner.png')}
+          style={styles.banner}
+        />
+      </View>
+      
       <View style={styles.logoContainer}>
         <Image 
           source={require('../../assets/images/headerLogo.png')}
@@ -114,6 +121,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  bannerContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  banner: {
+    width: '100%',
+    height: 150,
+    resizeMode: 'contain',
   },
   logoContainer: {
     marginBottom: 40,

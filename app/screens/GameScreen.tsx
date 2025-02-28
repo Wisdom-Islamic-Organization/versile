@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Modal, Alert, Dimensions, SafeAreaView, Text, TouchableOpacity, Platform, ScrollView, ActivityIndicator } from 'react-native';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import PuzzleGrid from '../components/PuzzleGrid';
-import Keyboard from '../components/Keyboard';
-import IntroModal from '../components/IntroModal';
-import { QuranicWord, GuessResult, GameSession } from '../types';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import useTheme from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import useColors from '../hooks/useColors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
-import useUserProgress from '../hooks/useUserProgress';
-import UserStats from '../components/UserStats';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import HeaderLogo from '../components/HeaderLogo';
-import { getTodayWordIndex } from '../utils/wordIndex';
+import IntroModal from '../components/IntroModal';
+import Keyboard from '../components/Keyboard';
+import PuzzleGrid from '../components/PuzzleGrid';
+import UserStats from '../components/UserStats';
+import WisdomStLogo from '../components/WisdomStLogo';
+import { db } from '../config/firebase';
 import { STORAGE_KEYS } from '../constants/storage';
+import useTheme from '../context/ThemeContext';
+import useColors from '../hooks/useColors';
+import useUserProgress from '../hooks/useUserProgress';
+import { GameSession, GuessResult, QuranicWord } from '../types';
+import { getTodayWordIndex } from '../utils/wordIndex';
 
 const MAX_ATTEMPTS = 6;
 const INTRO_SHOWN_KEY = 'quranic_wordle_intro_shown';
@@ -508,7 +509,7 @@ function GameScreen() {
             headerRight: () => (
               <TouchableOpacity 
                 onPress={toggleTheme} 
-                style={{ marginRight: 15 }}
+                style={{ marginLeft: 15, marginRight: 10 }}
               >
                 <Ionicons 
                   name={theme === 'light' ? 'moon' : 'sunny'} 
@@ -536,16 +537,19 @@ function GameScreen() {
           },
           headerTintColor: colors.header.text[theme],
           headerRight: () => (
-            <TouchableOpacity 
-              onPress={toggleTheme} 
-              style={{ marginRight: 15 }}
-            >
-              <Ionicons 
-                name={theme === 'light' ? 'moon' : 'sunny'} 
-                size={24} 
-                color={colors.header.text[theme]} 
-              />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <WisdomStLogo />
+              <TouchableOpacity 
+                onPress={toggleTheme} 
+                style={{ marginLeft: 15, marginRight: 10 }}
+              >
+                <Ionicons 
+                  name={theme === 'light' ? 'moon' : 'sunny'} 
+                  size={24} 
+                  color={colors.header.text[theme]} 
+                />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Platform, Image, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import LoaderLogo from '../components/LoaderLogo';
 import useColors from '../hooks/useColors';
@@ -8,7 +8,8 @@ import useTheme from '../context/ThemeContext';
 const IntroScreen = () => {
   const colors = useColors();
   const { theme } = useTheme();
-
+  const DEVICE_WIDTH = Dimensions.get('window').width;
+  
   const navigateToGame = () => {
     router.push('/game');
   };
@@ -56,10 +57,28 @@ const IntroScreen = () => {
       textAlign: 'center',
       marginBottom: 40,
     },
+    bannerContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+    },
+    banner: {
+      width: '100%',
+      height: DEVICE_WIDTH < 500 ? 100 : 200,
+      resizeMode: 'contain',
+    },
   });
 
   return (
     <View style={styles.container}>
+      <View style={styles.bannerContainer}>
+        <Image 
+          source={require('../../assets/images/banner.png')}
+          style={styles.banner}
+        />
+      </View>
+
       <View style={styles.logoWrapper}>
         <LoaderLogo />
       </View>
