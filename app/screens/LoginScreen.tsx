@@ -108,6 +108,11 @@ const LoginScreen = () => {
                 Play as Guest
               </Text>
             </TouchableOpacity>
+
+            {/* Show the players that only signed in users will be counted for the competition */}
+            <Text style={[styles.subtitle, { color: colors.secondaryText[theme] }]}>
+              Only signed in users will be counted for the competition
+            </Text>
           </View>
         </>
       ) : (
