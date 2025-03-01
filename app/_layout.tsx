@@ -1,19 +1,24 @@
-import { Stack, router } from 'expo-router';
+import { Stack, router, useRootNavigationState, Redirect, Slot } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { LogBox } from 'react-native';
+import { LogBox, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import useColors from './hooks/useColors';
 import { ThemeProvider } from './context/ThemeContext';
 import useTheme from './context/ThemeContext';
-import LoadingScreen from './components/LoadingScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import InitialLoadingScreen from './components/InitialLoadingScreen';
 import ProfileButton from './components/ProfileButton';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
   'Route "./types/index.ts" is missing the required default export',
   'props.pointerEvents is deprecated'
 ]);
+
+const Tabs = createBottomTabNavigator();
 
 export default function Layout() {
   const [isLoading, setIsLoading] = useState(true);
@@ -28,29 +33,57 @@ export default function Layout() {
   }, []);
 
   if (isLoading) {
-    return <LoadingScreen />;
+    return <InitialLoadingScreen />;
   }
   
   return (
-    <ThemeProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <ThemeProvider>
         <LayoutContent />
-      </AuthProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 
 function LayoutContent() {
   const colors = useColors();
   const { theme } = useTheme();
-  const { isAuthenticated, isGuest, isLoading } = useAuth();
+  const { user, isLoading, isAuthenticated, isGuest } = useAuth();
+  const rootNavigationState = useRootNavigationState();
+  const [appReady, setAppReady] = useState(false);
+  
+  // Add console logs to debug the state
+  console.log('Auth state:', { isAuthenticated, isGuest, isLoading });
+  console.log('Navigation state ready:', !!rootNavigationState?.key);
+  
+  // Use useEffect for navigation to ensure it happens after render
+  useEffect(() => {
+    if (rootNavigationState?.key && !isLoading && !isAuthenticated && !isGuest) {
+      console.log('Redirecting to login screen');
+      // Add a small delay to ensure navigation is ready
+      const timer = setTimeout(() => {
+        router.replace('/screens/login');
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [rootNavigationState?.key, isAuthenticated, isGuest, isLoading]);
   
   useEffect(() => {
-    // Redirect to login if not authenticated and not in guest mode
-    if (!isLoading && !isAuthenticated && !isGuest) {
-      router.replace('/screens/LoginScreen');
-    }
-  }, [isAuthenticated, isGuest, isLoading]);
+    const initializeApp = async () => {
+      setAppReady(true);
+    };
+    
+    initializeApp();
+  }, [user, isGuest]);
+  
+  if (isLoading || !appReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#6AAA64" />
+      </View>
+    );
+  }
   
   return (
     <SafeAreaProvider>
@@ -70,7 +103,31 @@ function LayoutContent() {
           headerRight: () => <ProfileButton />,
           headerTitle: '',
         }}
-      />
+      >
+        <Tabs.Screen
+          name="game"
+          options={{
+            title: 'Game',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="game-controller" size={size} color={color} />
+            ),
+          }}
+        >
+          {() => <Slot />}
+        </Tabs.Screen>
+        
+        <Tabs.Screen
+          name="leaderboard"
+          options={{
+            title: 'Leaderboard',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="trophy" size={size} color={color} />
+            ),
+          }}
+        >
+          {() => <Slot />}
+        </Tabs.Screen>
+      </Stack>
     </SafeAreaProvider>
   );
 }

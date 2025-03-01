@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import useColors from '../hooks/useColors';
@@ -6,18 +6,47 @@ import useTheme from '../context/ThemeContext';
 import { router } from 'expo-router';
 
 const LoginScreen = () => {
-  const { signInWithGoogle, playAsGuest, isLoading, isWeb } = useAuth();
+  const { signInWithGoogle, playAsGuest, isLoading, isWeb, isAuthenticated, isGuest } = useAuth();
   const colors = useColors();
   const { theme } = useTheme();
 
+  // Add debugging logs
+  useEffect(() => {
+    console.log('LoginScreen rendered');
+  }, []);
+
+  // Navigate to home when authenticated or in guest mode
+  useEffect(() => {
+    console.log('Auth state changed:', { isAuthenticated, isGuest, isLoading });
+    if (!isLoading && (isAuthenticated || isGuest)) {
+      console.log('Navigating to home screen');
+      // Use setTimeout to ensure navigation happens after the component is fully mounted
+      setTimeout(() => {
+        router.replace('/');
+      }, 100);
+    }
+  }, [isAuthenticated, isGuest, isLoading]);
+
   const handleGoogleSignIn = async () => {
-    await signInWithGoogle();
-    router.replace('/');
+    console.log('Google sign in pressed');
+    try {
+      console.log('Starting Google sign-in process...');
+      await signInWithGoogle();
+      console.log('Google sign-in function completed');
+      // Navigation will happen in the useEffect when auth state changes
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+    }
   };
 
   const handlePlayAsGuest = async () => {
-    await playAsGuest();
-    router.replace('/');
+    console.log('Play as guest pressed');
+    try {
+      await playAsGuest();
+      // Navigation will happen in the useEffect when auth state changes
+    } catch (error) {
+      console.error('Error playing as guest:', error);
+    }
   };
 
   if (isLoading) {

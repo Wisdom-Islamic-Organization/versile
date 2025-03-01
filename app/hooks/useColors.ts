@@ -1,4 +1,3 @@
-import useTheme from '../context/ThemeContext';
 import colors from '../constants/colors';
 import { ColorScheme } from '../types';
 

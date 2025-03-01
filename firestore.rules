@@ -8,14 +8,56 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.token.admin == true;
     }
     
-    // Users collection - allow read/write if authenticated
+    // Users collection - allow read/write if authenticated and it's their own data
     match /users/{userId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // User data subcollection - allow access to own data
+      match /user_data/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
-    // Game sessions - allow read/write if authenticated
+    // Game sessions - allow read/write if authenticated and it's their own session
     match /game_sessions/{sessionId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null && sessionId.matches(request.auth.uid + ".*");
+    }
+    
+    // Guest users collection - allow read/write if authenticated as that guest
+    match /guests/{guestId} {
+      allow read, write: if request.auth != null && request.auth.uid == guestId;
+      
+      // Guest data subcollection - allow access to own data
+      match /user_data/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == guestId;
+      }
+    }
+    
+    // Guest sessions - allow read/write if authenticated as that guest
+    match /guest_sessions/{sessionId} {
+      allow read, write: if request.auth != null && sessionId.matches(request.auth.uid + ".*");
+    }
+    
+    // Weekly scores - allow read for everyone, write only for the user's own score
+    match /weekly_scores/{scoreId} {
+      allow read: if true;
+      allow write: if request.auth != null && scoreId.matches(request.auth.uid + ".*");
+    }
+    
+    // Guest weekly scores - allow read for everyone, write only for the guest's own score
+    match /guest_weekly_scores/{scoreId} {
+      allow read: if true;
+      allow write: if request.auth != null && scoreId.matches(request.auth.uid + ".*");
+    }
+    
+    // Anonymous preferences - allow anyone to read/write
+    match /anonymous/{docId} {
+      allow read, write: if true;
+      
+      // Anonymous user data subcollection - allow anyone to read/write
+      match /user_data/{dataDocId} {
+        allow read, write: if true;
+      }
     }
   }
 }

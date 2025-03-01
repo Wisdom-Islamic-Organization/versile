@@ -1,6 +1,6 @@
 import { differenceInDays, startOfDay } from 'date-fns';
 
-const START_DATE = startOfDay(new Date('2025-02-08'));
+const START_DATE = startOfDay(new Date('2025-03-01'));
 
 export function getTodayWordIndex(): number {
   const today = startOfDay(new Date());

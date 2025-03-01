@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { User } from '../types';
 import useColors from '../hooks/useColors';
 import useTheme from '../context/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 interface UserStatsProps {
   user: User;
@@ -11,6 +13,7 @@ interface UserStatsProps {
 const UserStats: React.FC<UserStatsProps> = ({ user }) => {
   const colors = useColors();
   const { theme } = useTheme();
+  const router = useRouter();
 
   const styles = StyleSheet.create({
     container: {
@@ -36,24 +39,102 @@ const UserStats: React.FC<UserStatsProps> = ({ user }) => {
     },
     streak: {
       color: colors.correct,
-    }
+    },
+    statsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    statItem: {
+      alignItems: 'center',
+    },
+    statValue: {
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    statLabel: {
+      fontSize: 14,
+      marginTop: 5,
+    },
+    scoreContainer: {
+      alignItems: 'center',
+      marginTop: 20,
+      paddingTop: 15,
+      borderTopWidth: 1,
+      borderTopColor: '#eaeaea',
+    },
+    scoreLabel: {
+      fontSize: 14,
+      marginBottom: 5,
+    },
+    scoreValue: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      marginBottom: 10,
+    },
+    leaderboardButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      borderWidth: 1,
+    },
+    buttonIcon: {
+      marginRight: 5,
+    },
+    leaderboardText: {
+      fontSize: 14,
+      fontWeight: '500',
+    },
   });
 
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
-        <Text style={styles.label}>Current Streak</Text>
-        <Text style={[styles.value, styles.streak]}>{user.streak}</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.text[theme] }]}>
+            {user?.guessed_words?.length || 0}
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.secondaryText[theme] }]}>
+            Words Found
+          </Text>
+        </View>
+        
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.text[theme] }]}>
+            {user?.streak || 0}
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.secondaryText[theme] }]}>
+            Current Streak
+          </Text>
+        </View>
+        
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: colors.text[theme] }]}>
+            {user?.longest_streak || 0}
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.secondaryText[theme] }]}>
+            Best Streak
+          </Text>
+        </View>
       </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Words Guessed</Text>
-        <Text style={styles.value}>{user.guessed_words.length}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Last Played</Text>
-        <Text style={styles.value}>
-          {user.last_played ? new Date(user.last_played).toLocaleDateString() : 'Never'}
+      
+      <View style={styles.scoreContainer}>
+        <Text style={[styles.scoreLabel, { color: colors.secondaryText[theme] }]}>
+          Weekly Score
         </Text>
+        <Text style={[styles.scoreValue, { color: colors.correct }]}>
+          {user?.current_week_score || 0}
+        </Text>
+        <TouchableOpacity 
+          style={[styles.leaderboardButton, { backgroundColor: colors.correct + '20', borderColor: colors.correct }]} 
+          onPress={() => router.push('/leaderboard')}
+        >
+          <Ionicons name="trophy" size={16} color={colors.correct} style={styles.buttonIcon} />
+          <Text style={[styles.leaderboardText, { color: colors.correct }]}>View Leaderboard</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

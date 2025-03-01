@@ -1,17 +1,13 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import LoaderLogo from './LoaderLogo';
-import useColors from '../hooks/useColors';
-import useTheme from '../context/ThemeContext';
 
+// Simple loading screen that doesn't depend on theme context
 const LoadingScreen = () => {
-  const colors = useColors();
-  const { theme } = useTheme();
-
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background[theme],
+      backgroundColor: '#FFFFFF', // Use a default light background
       justifyContent: 'center',
       alignItems: 'center',
     },

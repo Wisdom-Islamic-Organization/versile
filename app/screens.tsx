@@ -1,7 +1,13 @@
-import { Redirect, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 
 export default function ScreensLayout() {
   // This layout is used for the /screens/* routes
-  // We'll redirect to the main app for now
-  return <Redirect href="/" />;
+  // Instead of redirecting, we'll render a Stack navigator
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    />
+  );
 } 

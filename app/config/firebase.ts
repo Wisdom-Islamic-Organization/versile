@@ -4,7 +4,7 @@ import {
   initializeAuth, 
   getReactNativePersistence, 
   Auth, 
-  GoogleAuthProvider 
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { isSupported, getAnalytics } from 'firebase/analytics';
