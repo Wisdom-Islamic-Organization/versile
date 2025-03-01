@@ -139,6 +139,12 @@ const IntroModal: React.FC<IntroModalProps> = ({ visible, onClose }) => {
       color: colors.text[theme],
       textAlign: 'center',
       marginBottom: 15,
+    },
+    contentScrollView: {
+      pointerEvents: 'auto',
+    },
+    contentContainer: {
+      paddingHorizontal: 15,
     }
   });
 
@@ -155,7 +161,11 @@ const IntroModal: React.FC<IntroModalProps> = ({ visible, onClose }) => {
             <Text style={styles.closeButtonText}>×</Text>
           </TouchableOpacity>
           
-          <ScrollView style={{ pointerEvents: 'auto' }} contentContainerStyle={styles.scrollContent}>
+          <ScrollView 
+            style={styles.contentScrollView}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.title}>How To Play</Text>
             
             <Text style={styles.subtitle}>Guess the Quranic word in 6 tries.</Text>

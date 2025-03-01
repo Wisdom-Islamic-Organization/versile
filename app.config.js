@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "versile",
     slug: "versile",
-    version: "1.1.0",
+    version: "1.2.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "versile",
@@ -28,7 +28,7 @@ export default {
         backgroundColor: "#ffffff"
       },
       package: "com.versile.app",
-      versionCode: 2,
+      versionCode: 3,
       splash: {
         image: "./assets/images/splash-icon.png",
         resizeMode: "contain",

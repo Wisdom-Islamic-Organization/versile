@@ -65,7 +65,7 @@ const IntroScreen = () => {
     },
     banner: {
       width: '100%',
-      height: DEVICE_WIDTH < 500 ? 100 : 200,
+      height: DEVICE_WIDTH < 500 ? 100 : 150,
       resizeMode: 'contain',
     },
   });

@@ -53,7 +53,7 @@ function GameScreen() {
 
   const { theme, toggleTheme } = useTheme();
   const colors = useColors();
-  const { user, loading: userLoading, updateUserProgress, isGuest } = useUserProgress();
+  const { user, updateUserProgress, isGuest } = useUserProgress();
 
   useEffect(() => {
     const init = async () => {
@@ -507,16 +507,28 @@ function GameScreen() {
             },
             headerTintColor: colors.header.text[theme],
             headerRight: () => (
-              <TouchableOpacity 
-                onPress={toggleTheme} 
-                style={{ marginLeft: 15, marginRight: 10 }}
-              >
-                <Ionicons 
-                  name={theme === 'light' ? 'moon' : 'sunny'} 
-                  size={24} 
-                  color={colors.header.text[theme]} 
-                />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <WisdomStLogo />
+                <TouchableOpacity 
+                  onPress={() => setShowIntro(true)} 
+                >
+                  <Ionicons 
+                    name="information-circle-outline" 
+                    size={24} 
+                    color={colors.header.text[theme]} 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={toggleTheme} 
+                  style={{ marginLeft: 10, marginRight: 10 }}
+                >
+                  <Ionicons 
+                    name={theme === 'light' ? 'moon' : 'sunny'} 
+                    size={24} 
+                    color={colors.header.text[theme]} 
+                  />
+                </TouchableOpacity>
+              </View>
             ),
           }}
         />
@@ -540,8 +552,17 @@ function GameScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <WisdomStLogo />
               <TouchableOpacity 
+                onPress={() => setShowIntro(true)} 
+              >
+                <Ionicons 
+                  name="information-circle-outline" 
+                  size={24} 
+                  color={colors.header.text[theme]} 
+                />
+              </TouchableOpacity>
+              <TouchableOpacity 
                 onPress={toggleTheme} 
-                style={{ marginLeft: 15, marginRight: 10 }}
+                style={{ marginLeft: 10, marginRight: 10 }}
               >
                 <Ionicons 
                   name={theme === 'light' ? 'moon' : 'sunny'} 
@@ -549,6 +570,7 @@ function GameScreen() {
                   color={colors.header.text[theme]} 
                 />
               </TouchableOpacity>
+
             </View>
           ),
         }}
@@ -556,7 +578,10 @@ function GameScreen() {
       <View style={styles.container}>
         <View style={styles.contentContainer}>
           {gameOver && currentWord ? (
-            <ScrollView style={styles.wordDetailsContainer}>
+            <ScrollView 
+              style={styles.wordDetailsContainer}
+              showsVerticalScrollIndicator={false}
+            >
               {user && <UserStats user={user} />}
               <View style={styles.headerSection}>
                 <Text style={styles.arabicText}>{currentWord.arabic_word}</Text>
