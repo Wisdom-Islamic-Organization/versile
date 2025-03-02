@@ -8,6 +8,7 @@ import useTheme from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import InitialLoadingScreen from './components/InitialLoadingScreen';
 import ProfileButton from './components/ProfileButton';
+import ThemeToggle from './components/ThemeToggle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -100,7 +101,12 @@ function LayoutContent() {
           contentStyle: {
             backgroundColor: colors.background[theme],
           },
-          headerRight: () => <ProfileButton />,
+          headerRight: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ThemeToggle />
+              <ProfileButton />
+            </View>
+          ),
           headerTitle: '',
         }}
       >

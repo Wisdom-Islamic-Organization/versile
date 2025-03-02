@@ -26,6 +26,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import GameOver from '../components/GameOver';
 import { calculateGameScore } from '../utils/leaderboard';
+import { saveToLocalStorage, getFromLocalStorage, LOCAL_STORAGE_KEYS } from '../utils/localStorage';
 
 const MAX_ATTEMPTS = 6;
 const INTRO_SHOWN_KEY = 'quranic_wordle_intro_shown';
@@ -63,23 +64,41 @@ function GameScreen() {
   const [loading, setLoading] = useState(true);
   const [showGameOver, setShowGameOver] = useState(false);
   const [gameScore, setGameScore] = useState(0);
-  const [isPlayedStatusLoaded, setIsPlayedStatusLoaded] = useState(false);
+  const [hasCompletedToday, setHasCompletedToday] = useState(false);
 
   const colors = useColors();
 
   useEffect(() => {
     const init = async () => {
       try {
-        // Check intro status
-        const userId = user?.id || '';
-        const introShown = await getUserPreference(userId, STORAGE_KEYS.INTRO_SHOWN, isGuest);
+        // Check intro status from localStorage
+        const introShown = await getFromLocalStorage(LOCAL_STORAGE_KEYS.INTRO_SHOWN, false);
         if (!introShown) {
           setShowIntro(true);
         }
         
-        // Get the last played date from storage
-        const lastPlayedDate = await getUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, isGuest);
+        // Get the last played date - first try localStorage for speed
+        let lastPlayedDate = await getFromLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, '');
         const today = new Date().toISOString().split('T')[0];
+        
+        // For authenticated users, also check Firebase for cross-device sync
+        const userId = user?.id || '';
+        if (userId && !isGuest) {
+          try {
+            const firebaseDateStr = await getUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, false);
+            if (firebaseDateStr) {
+              // If Firebase has a more recent date, use that instead
+              if (lastPlayedDate < firebaseDateStr) {
+                lastPlayedDate = firebaseDateStr;
+                // Update localStorage with the Firebase date
+                await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, lastPlayedDate);
+              }
+            }
+          } catch (error) {
+            console.error('Error getting last played date from Firebase:', error);
+            // Continue with localStorage date if Firebase fails
+          }
+        }
         
         // Clear state if it's a new day
         if (lastPlayedDate !== today) {
@@ -89,28 +108,54 @@ function GameScreen() {
           setShowWordDetails(false);
         } else {
           // Only load saved state if it's the same day
-          const savedState = await getGameState(userId, isGuest);
-          if (savedState) {
-            setGuesses(savedState.guesses);
-            setLetterStates(savedState.letterStates);
-            setGameOver(savedState.gameOver);
-            setShowWordDetails(savedState.showWordDetails);
+          // For authenticated users, always try to get state from Firebase for cross-device sync
+          try {
+            const savedState = await getGameState(userId, isGuest);
+            if (savedState) {
+              setGuesses(savedState.guesses);
+              setLetterStates(savedState.letterStates);
+              setGameOver(savedState.gameOver);
+              setShowWordDetails(savedState.showWordDetails);
+            }
+          } catch (error) {
+            console.error('Error loading saved game state:', error);
+            // Continue without saved state if loading fails
           }
         }
         
         // Fetch daily word
-        fetchDailyWord();
+        await fetchDailyWord();
       } catch (error) {
         console.error('Error during initialization:', error);
+        // Ensure loading states are set to false even if there's an error
+        setLoading(false);
       }
     };
+    
+    // Start initialization
     init();
-  }, []);
+  }, [user, isGuest]);
+  
+  // Separate useEffect for loading timeout
+  useEffect(() => {
+    // Only set timeout if we're in loading state
+    if (!loading) return;
+    
+    console.log('Setting loading timeout');
+    const loadingTimeout = setTimeout(() => {
+      console.log('Loading timeout reached, forcing loading state to false');
+      setLoading(false);
+    }, 10000); // 10 seconds timeout
+    
+    return () => {
+      clearTimeout(loadingTimeout);
+    };
+  }, [loading]);
 
   const handleIntroClose = async () => {
     setShowIntro(false);
-    const userId = user?.id || '';
-    await saveUserPreference(userId, STORAGE_KEYS.INTRO_SHOWN, 'true', isGuest);
+    // Save intro shown state to localStorage only
+    await saveToLocalStorage(LOCAL_STORAGE_KEYS.INTRO_SHOWN, true);
   };
 
   const fetchDailyWord = async () => {
@@ -118,53 +163,89 @@ function GameScreen() {
       setLoading(true);
       
       // Check if user has already completed today's game
-      const completed = await hasCompletedPlayingToday();
+      try {
+        const completed = await hasCompletedPlayingToday();
+        if (completed) {
+          setHasCompletedToday(true);
+        }
+      } catch (error) {
+        console.error('Error checking completion status:', error);
+        // Continue even if checking completion status fails
+      }
       
       // Get today's word index
-      const todayIndex = getTodayWordIndex();
+      const wordIndex = getTodayWordIndex();
       
-      // Query Firestore for word with matching index
+      // Fetch the word from Firestore
       const wordsRef = collection(db, 'words');
-      const q = query(wordsRef, where('index', '==', todayIndex));
+      const q = query(wordsRef, where('index', '==', wordIndex));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
         const wordDoc = querySnapshot.docs[0];
-        const word = { id: wordDoc.id, ...wordDoc.data() } as QuranicWord;
-        setCurrentWord(word);
+        const wordData = wordDoc.data() as QuranicWord;
         
-        if (completed) {
-          setGameOver(true);
-          setShowWordDetails(true);
-          
-          // If authenticated user, try to load their previous game state from Firebase
-          if (user) {
-            const today = new Date().toISOString().split('T')[0];
-            const userId = user.id;
-            
-            // Get game state from Firestore
-            const savedState = await getGameState(userId, isGuest);
-            if (!savedState) {
-              // If no state, create a basic completed state
-              const gameState: GameState = {
-                guesses: [], // We don't have the actual guesses
-                letterStates: {},
-                gameOver: true,
-                showWordDetails: true
-              };
-              await saveGameState(userId, gameState, isGuest);
-              await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, isGuest);
-            }
+        // Validate the word data has required fields
+        if (!wordData) {
+          console.error('No word data received from Firestore');
+          Alert.alert('Error', 'The word data is invalid. Please try again later.');
+          return;
+        }
+        
+        // Use document ID as the word ID if not provided in the data
+        const wordId = wordData.id || wordDoc.id;
+        
+        // Check for other required fields
+        if (!wordData.arabic_word || !wordData.transliteration || wordData.index === undefined) {
+          console.error('Word data missing required fields:', 
+            !wordData.arabic_word ? 'arabic_word ' : '',
+            !wordData.transliteration ? 'transliteration ' : '',
+            wordData.index === undefined ? 'index ' : ''
+          );
+          Alert.alert('Error', 'The word data is incomplete. Please try again later.');
+          return;
+        }
+        
+        // Set the word with ID from document
+        setCurrentWord({
+          id: wordId,
+          arabic_word: wordData.arabic_word || '',
+          transliteration: wordData.transliteration || '',
+          english_translation: wordData.english_translation || '',
+          meanings: wordData.meanings || [],
+          part_of_speech: wordData.part_of_speech || 'noun',
+          morphological_info: wordData.morphological_info || '',
+          frequency: wordData.frequency || 0,
+          occurrences: wordData.occurrences || [],
+          index: wordData.index || 0
+        });
+        
+        // Save today's date to localStorage
+        const today = new Date().toISOString().split('T')[0];
+        await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
+        
+        // For authenticated users, also save to Firebase for cross-device sync
+        const userId = user?.id || '';
+        if (userId && !isGuest) {
+          try {
+            await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, false);
+          } catch (error) {
+            console.error('Error saving last played date to Firebase:', error);
+            // Continue even if saving to Firebase fails
           }
         }
       } else {
         console.error('No word found for today');
+        // Show an error message to the user
+        Alert.alert('Error', 'Could not load today\'s word. Please try again later.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to fetch word');
+      console.error('Error fetching daily word:', error);
+      // Show an error message to the user
+      Alert.alert('Error', 'Could not load the game. Please check your connection and try again.');
     } finally {
+      // Always set loading to false, even if there's an error
       setLoading(false);
-      setIsPlayedStatusLoaded(true);
     }
   };
 
@@ -213,10 +294,15 @@ function GameScreen() {
     setLetterStates(newLetterStates);
     setCurrentGuess('');
 
-    // Set last played date for today on first guess
+    // Save today's date to localStorage and Firebase for authenticated users
     const today = new Date().toISOString().split('T')[0];
+    await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
+    
+    // For authenticated users, also save to Firebase for cross-device sync
     const userId = user?.id || '';
-    await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, isGuest);
+    if (userId && !isGuest) {
+      await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, false);
+    }
 
     // Check win/lose condition
     const todayIndex = getTodayWordIndex();
@@ -244,7 +330,10 @@ function GameScreen() {
       await updateUserProgress(currentWord.id, newGuesses.length, success);
       
       // Ensure we set the last played date
-      await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, isGuest);
+      await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
+      if (userId && !isGuest) {
+        await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, false);
+      }
       
       if (success) {
         gameState.showWordDetails = true;
@@ -254,13 +343,27 @@ function GameScreen() {
       }
     }
 
-    await saveGameState(userId, gameState, isGuest);
+    // Always save game state to Firebase for authenticated users
+    // This ensures cross-device synchronization
+    if (userId) {
+      await saveGameState(userId, gameState, isGuest);
+    }
   };
 
-  const handleGameOverClose = () => {
+  const handleGameOverClose = async () => {
     setShowGameOver(false);
-    if (currentWord) {
+    if (!showWordDetails) {
       setShowWordDetails(true);
+    }
+
+    // Save today's date to localStorage
+    const today = new Date().toISOString().split('T')[0];
+    await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
+    
+    // For authenticated users, also save to Firebase for cross-device sync
+    const userId = user?.id || '';
+    if (userId && !isGuest) {
+      await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, false);
     }
   };
 
@@ -483,7 +586,7 @@ function GameScreen() {
     },
   });
 
-  if (!currentWord || loading || !isPlayedStatusLoaded) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen
@@ -521,6 +624,69 @@ function GameScreen() {
         />
         <View style={[styles.container, styles.loadingContainer]}>
           <ActivityIndicator size="large" color={colors.correct} />
+          <Text style={{ color: colors.text[theme], marginTop: 20 }}>Loading game...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!currentWord) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Stack.Screen
+          options={{
+            headerTitle: () => <HeaderLogo />,
+            headerStyle: {
+              backgroundColor: colors.header.background[theme],
+            },
+            headerTintColor: colors.header.text[theme],
+            headerRight: () => (
+              <>
+                <TouchableOpacity 
+                  onPress={() => setShowIntro(true)} 
+                  style={{ marginRight: 15 }}
+                >
+                  <Ionicons 
+                    name="information-circle-outline" 
+                    size={24} 
+                    color={colors.header.text[theme]} 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={toggleTheme} 
+                  style={{ marginRight: 15 }}
+                >
+                  <Ionicons 
+                    name={theme === 'light' ? 'moon' : 'sunny'} 
+                    size={24} 
+                    color={colors.header.text[theme]} 
+                  />
+                </TouchableOpacity>
+              </>
+            ),
+          }}
+        />
+        <View style={[styles.container, styles.loadingContainer]}>
+          <Text style={{ color: colors.text[theme], fontSize: 18, textAlign: 'center', margin: 20 }}>
+            Could not load today's word. Please check your connection and try again.
+          </Text>
+          <TouchableOpacity 
+            style={{
+              backgroundColor: colors.correct,
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 8,
+              marginTop: 20
+            }}
+            onPress={() => {
+              setLoading(true);
+              fetchDailyWord();
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
+              Retry
+            </Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -571,15 +737,15 @@ function GameScreen() {
             >
               {user && <UserStats user={user} />}
               <View style={styles.headerSection}>
-                <Text style={styles.arabicText}>{currentWord.arabic_word}</Text>
-                <Text style={styles.transliteration}>{currentWord.transliteration}</Text>
-                <Text style={styles.englishText}>{currentWord.id.toUpperCase()}</Text>
+                <Text style={styles.arabicText}>{currentWord.arabic_word || ''}</Text>
+                <Text style={styles.transliteration}>{currentWord.transliteration || ''}</Text>
+                <Text style={styles.englishText}>{currentWord.id ? currentWord.id.toUpperCase() : ''}</Text>
               </View>
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Meanings</Text>
                 <View style={styles.meaningsContainer}>
-                  {currentWord.meanings.map((meaning, index) => (
+                  {(currentWord.meanings || []).map((meaning, index) => (
                     <View key={index} style={styles.meaningChip}>
                       <Text style={styles.meaningText}>{meaning}</Text>
                     </View>
@@ -590,8 +756,8 @@ function GameScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Grammar</Text>
                 <View style={styles.grammarCard}>
-                  <Text style={styles.grammarText}>Part of Speech: {currentWord.part_of_speech}</Text>
-                  <Text style={styles.grammarText}>{currentWord.morphological_info}</Text>
+                  <Text style={styles.grammarText}>Part of Speech: {currentWord.part_of_speech || 'N/A'}</Text>
+                  <Text style={styles.grammarText}>{currentWord.morphological_info || 'N/A'}</Text>
                 </View>
               </View>
 
@@ -599,17 +765,17 @@ function GameScreen() {
                 <View style={styles.frequencyHeader}>
                   <Text style={styles.sectionTitle}>Occurrences in Quran</Text>
                   <View style={styles.frequencyBadge}>
-                    <Text style={styles.frequencyText}>{currentWord.frequency} times</Text>
+                    <Text style={styles.frequencyText}>{currentWord.frequency || 0} times</Text>
                   </View>
                 </View>
-                {currentWord.occurrences.map((occurrence, index) => (
+                {(currentWord.occurrences || []).map((occurrence, index) => (
                   <View key={index} style={styles.occurrenceCard}>
                     <View style={styles.referenceContainer}>
                       <Text style={styles.referenceText}>
-                        Surah {occurrence.surah}:{occurrence.ayah}
+                        Surah {occurrence.surah || ''}:{occurrence.ayah || ''}
                       </Text>
                     </View>
-                    <Text style={styles.contextText}>{occurrence.context}</Text>
+                    <Text style={styles.contextText}>{occurrence.context || ''}</Text>
                   </View>
                 ))}
               </View>
