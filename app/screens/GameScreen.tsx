@@ -100,22 +100,59 @@ function GameScreen() {
           }
         }
         
-        // Clear state if it's a new day
-        if (lastPlayedDate !== today) {
-          setGuesses([]);
-          setLetterStates({});
-          setGameOver(false);
-          setShowWordDetails(false);
-        } else {
+        // Check if user has completed today's game
+        let hasCompleted = false;
+        try {
+          hasCompleted = await hasCompletedPlayingToday();
+          setHasCompletedToday(hasCompleted);
+        } catch (error) {
+          console.error('Error checking completion status during init:', error);
+        }
+        
+        // IMPORTANT: Force reset the game state first to avoid any stale state
+        setGuesses([]);
+        setLetterStates({});
+        setGameOver(false);
+        setShowWordDetails(false);
+        
+        // If user hasn't completed today's game, reset the saved state as well
+        if (!hasCompleted) {
+          const resetState: GameState = {
+            guesses: [],
+            letterStates: {},
+            gameOver: false,
+            showWordDetails: false
+          };
+          
+          if (userId) {
+            await saveGameState(userId, resetState, isGuest);
+          }
+        }
+        // Only load saved state if it's the same day and user has completed today's game
+        else if (lastPlayedDate === today) {
           // Only load saved state if it's the same day
           // For authenticated users, always try to get state from Firebase for cross-device sync
           try {
             const savedState = await getGameState(userId, isGuest);
+            
             if (savedState) {
-              setGuesses(savedState.guesses);
-              setLetterStates(savedState.letterStates);
-              setGameOver(savedState.gameOver);
-              setShowWordDetails(savedState.showWordDetails);
+              setGuesses(savedState.guesses || []);
+              setLetterStates(savedState.letterStates || {});
+              
+              // Only set gameOver if it's explicitly true
+              if (savedState.gameOver === true) {
+                setGameOver(true);
+                
+                // Only show word details if explicitly set to true
+                if (savedState.showWordDetails === true) {
+                  setShowWordDetails(true);
+                } else {
+                  setShowWordDetails(false);
+                }
+              } else {
+                setGameOver(false);
+                setShowWordDetails(false);
+              }
             }
           } catch (error) {
             console.error('Error loading saved game state:', error);
@@ -162,16 +199,7 @@ function GameScreen() {
     try {
       setLoading(true);
       
-      // Check if user has already completed today's game
-      try {
-        const completed = await hasCompletedPlayingToday();
-        if (completed) {
-          setHasCompletedToday(true);
-        }
-      } catch (error) {
-        console.error('Error checking completion status:', error);
-        // Continue even if checking completion status fails
-      }
+      // We already checked completion status in init, no need to check again
       
       // Get today's word index
       const wordIndex = getTodayWordIndex();
@@ -336,8 +364,13 @@ function GameScreen() {
       }
       
       if (success) {
-        gameState.showWordDetails = true;
-        setShowWordDetails(true);
+        // Only update the game state, don't automatically show word details
+        gameState.showWordDetails = false;
+        // Let the user see they won first, don't immediately show word details
+        // setShowWordDetails(true);
+        
+        // Show game over screen with success message
+        setShowGameOver(true);
       } else {
         setShowGameOver(true);
       }
@@ -352,8 +385,24 @@ function GameScreen() {
 
   const handleGameOverClose = async () => {
     setShowGameOver(false);
-    if (!showWordDetails) {
+    
+    // Only show word details if the game is actually over
+    if (gameOver) {
       setShowWordDetails(true);
+      
+      // Update the game state to reflect that word details should be shown
+      const gameState: GameState = {
+        guesses,
+        letterStates,
+        gameOver: true,
+        showWordDetails: true
+      };
+      
+      // Save the updated game state
+      const userId = user?.id || '';
+      if (userId) {
+        await saveGameState(userId, gameState, isGuest);
+      }
     }
 
     // Save today's date to localStorage
@@ -364,6 +413,31 @@ function GameScreen() {
     const userId = user?.id || '';
     if (userId && !isGuest) {
       await saveUserPreference(userId, STORAGE_KEYS.LAST_PLAYED_DATE, today, false);
+    }
+  };
+
+  // Add a function to reset the game
+  const resetGame = async () => {
+    // Reset all game state
+    setGuesses([]);
+    setLetterStates({});
+    setCurrentGuess('');
+    setGameOver(false);
+    setShowWordDetails(false);
+    setShowGameOver(false);
+    
+    // Save the reset state
+    const gameState: GameState = {
+      guesses: [],
+      letterStates: {},
+      gameOver: false,
+      showWordDetails: false
+    };
+    
+    // Save the updated game state
+    const userId = user?.id || '';
+    if (userId) {
+      await saveGameState(userId, gameState, isGuest);
     }
   };
 
@@ -730,7 +804,8 @@ function GameScreen() {
       />
       <View style={styles.container}>
         <View style={styles.contentContainer}>
-          {gameOver && currentWord ? (
+          {/* Only show word details if gameOver AND showWordDetails are both true */}
+          {gameOver && showWordDetails && currentWord ? (
             <ScrollView 
               style={styles.wordDetailsContainer}
               showsVerticalScrollIndicator={false}
@@ -779,6 +854,39 @@ function GameScreen() {
                   </View>
                 ))}
               </View>
+              
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.correct,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  marginTop: 20,
+                  marginBottom: 10,
+                  alignSelf: 'center'
+                }}
+                onPress={() => {
+                  // Toggle back to game mode
+                  setShowWordDetails(false);
+                  
+                  // Update game state in storage
+                  const gameState: GameState = {
+                    guesses,
+                    letterStates,
+                    gameOver,
+                    showWordDetails: false
+                  };
+                  
+                  const userId = user?.id || '';
+                  if (userId) {
+                    saveGameState(userId, gameState, isGuest);
+                  }
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
+                  Back to Game
+                </Text>
+              </TouchableOpacity>
             </ScrollView>
           ) : (
             <>
