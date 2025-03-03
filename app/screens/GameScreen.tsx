@@ -29,7 +29,6 @@ import { calculateGameScore } from '../utils/leaderboard';
 import { saveToLocalStorage, getFromLocalStorage, LOCAL_STORAGE_KEYS } from '../utils/localStorage';
 
 const MAX_ATTEMPTS = 6;
-const INTRO_SHOWN_KEY = 'quranic_wordle_intro_shown';
 
 const { width, height } = Dimensions.get('window');
 const CONTENT_WIDTH = Platform.OS === 'web' 
@@ -109,14 +108,15 @@ function GameScreen() {
           console.error('Error checking completion status during init:', error);
         }
         
-        // IMPORTANT: Force reset the game state first to avoid any stale state
-        setGuesses([]);
-        setLetterStates({});
-        setGameOver(false);
-        setShowWordDetails(false);
-        
-        // If user hasn't completed today's game, reset the saved state as well
+        // IMPORTANT: Only reset the game state if the user hasn't completed today's game
         if (!hasCompleted) {
+          // Reset game state to avoid any stale state
+          setGuesses([]);
+          setLetterStates({});
+          setGameOver(false);
+          setShowWordDetails(false);
+          
+          // Reset the saved state as well
           const resetState: GameState = {
             guesses: [],
             letterStates: {},
@@ -128,10 +128,8 @@ function GameScreen() {
             await saveGameState(userId, resetState, isGuest);
           }
         }
-        // Only load saved state if it's the same day and user has completed today's game
+        // If user has completed today's game, load the saved state
         else if (lastPlayedDate === today) {
-          // Only load saved state if it's the same day
-          // For authenticated users, always try to get state from Firebase for cross-device sync
           try {
             const savedState = await getGameState(userId, isGuest);
             
@@ -139,20 +137,9 @@ function GameScreen() {
               setGuesses(savedState.guesses || []);
               setLetterStates(savedState.letterStates || {});
               
-              // Only set gameOver if it's explicitly true
-              if (savedState.gameOver === true) {
-                setGameOver(true);
-                
-                // Only show word details if explicitly set to true
-                if (savedState.showWordDetails === true) {
-                  setShowWordDetails(true);
-                } else {
-                  setShowWordDetails(false);
-                }
-              } else {
-                setGameOver(false);
-                setShowWordDetails(false);
-              }
+              // For completed games, always show game over and word details
+              setGameOver(true);
+              setShowWordDetails(true);
             }
           } catch (error) {
             console.error('Error loading saved game state:', error);
@@ -162,6 +149,9 @@ function GameScreen() {
         
         // Fetch daily word
         await fetchDailyWord();
+        
+        // Ensure loading state is set to false
+        setLoading(false);
       } catch (error) {
         console.error('Error during initialization:', error);
         // Ensure loading states are set to false even if there's an error
@@ -173,6 +163,26 @@ function GameScreen() {
     init();
   }, [user, isGuest]);
   
+  // Add a new useEffect to ensure word details are shown when hasCompletedToday is true
+  useEffect(() => {
+    if (hasCompletedToday && currentWord) {
+      console.log('User has completed today\'s game, showing word details');
+      setGameOver(true);
+      setShowWordDetails(true);
+    }
+  }, [hasCompletedToday, currentWord]);
+  
+  // Add a debug useEffect to log state changes
+  useEffect(() => {
+    console.log('Game state updated:', { 
+      gameOver, 
+      showWordDetails, 
+      hasCompletedToday, 
+      guessesLength: guesses.length,
+      hasCurrentWord: !!currentWord
+    });
+  }, [gameOver, showWordDetails, hasCompletedToday, guesses.length, currentWord]);
+
   // Separate useEffect for loading timeout
   useEffect(() => {
     // Only set timeout if we're in loading state
@@ -854,39 +864,6 @@ function GameScreen() {
                   </View>
                 ))}
               </View>
-              
-              <TouchableOpacity
-                style={{
-                  backgroundColor: colors.correct,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                  marginTop: 20,
-                  marginBottom: 10,
-                  alignSelf: 'center'
-                }}
-                onPress={() => {
-                  // Toggle back to game mode
-                  setShowWordDetails(false);
-                  
-                  // Update game state in storage
-                  const gameState: GameState = {
-                    guesses,
-                    letterStates,
-                    gameOver,
-                    showWordDetails: false
-                  };
-                  
-                  const userId = user?.id || '';
-                  if (userId) {
-                    saveGameState(userId, gameState, isGuest);
-                  }
-                }}
-              >
-                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
-                  Back to Game
-                </Text>
-              </TouchableOpacity>
             </ScrollView>
           ) : (
             <>
