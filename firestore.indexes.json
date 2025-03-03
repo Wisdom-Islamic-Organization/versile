@@ -1,4 +1,33 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "weekly_scores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "week_start",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "guest_weekly_scores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "week_start",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

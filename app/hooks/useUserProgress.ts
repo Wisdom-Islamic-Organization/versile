@@ -32,29 +32,27 @@ export default function useUserProgress() {
     try {
       const today = new Date().toISOString().split('T')[0];
       
+      // Calculate new streak first
+      let newStreak = 0;
+      const lastPlayed = user?.last_played ? new Date(user.last_played) : null;
+      if (success && lastPlayed) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        if (lastPlayed.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
+          newStreak = (user?.streak || 0) + 1;
+        } else {
+          newStreak = 1;
+        }
+      } else if (success) {
+        newStreak = 1;
+      }
+      
+      // Calculate score with new streak
+      const score = calculateGameScore(attempts, success, newStreak);
+      
       if (user && !isGuest) {
         // Authenticated user - save progress to Firestore
-        
-        // Update streak
-        let newStreak = 0;
-        if (success) {
-          if (user.last_played) {
-            const lastPlayed = new Date(user.last_played);
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            
-            if (lastPlayed.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
-              newStreak = user.streak + 1;
-            } else {
-              newStreak = 1;
-            }
-          } else {
-            newStreak = 1;
-          }
-        }
-        
-        // Calculate score
-        const score = calculateGameScore(attempts, success, newStreak);
         
         // Create game session
         const sessionData: GameSession = {
@@ -106,7 +104,7 @@ export default function useUserProgress() {
         
         let progress = {
           last_played: today,
-          streak: 0,
+          streak: newStreak, // Use the already calculated streak
           guessed_words: [] as string[],
           total_score: 0,
           current_week_score: 0,
@@ -118,8 +116,7 @@ export default function useUserProgress() {
         if (guestDoc.exists()) {
           const guestData = guestDoc.data();
           progress = {
-            last_played: today,
-            streak: guestData.streak || 0,
+            ...progress,
             guessed_words: guestData.guessed_words || [],
             total_score: guestData.total_score || 0,
             current_week_score: guestData.current_week_score || 0,
@@ -129,33 +126,8 @@ export default function useUserProgress() {
           };
         }
         
-        // Update streak
-        let newStreak = 0;
         if (success) {
-          if (progress.last_played) {
-            const lastPlayed = new Date(progress.last_played);
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            
-            if (lastPlayed.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
-              newStreak = progress.streak + 1;
-            } else {
-              newStreak = 1;
-            }
-          } else {
-            newStreak = 1;
-          }
           progress.guessed_words = [...progress.guessed_words, wordId];
-          progress.streak = newStreak;
-        } else {
-          progress.streak = 0;
-        }
-        
-        // Calculate score
-        const score = calculateGameScore(attempts, success, newStreak);
-        
-        if (success) {
-          // Update score fields
           progress.total_score += score;
           progress.current_week_score += score;
           progress.longest_streak = Math.max(progress.longest_streak, newStreak);

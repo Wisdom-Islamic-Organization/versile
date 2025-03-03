@@ -74,20 +74,22 @@ export async function updateWeeklyScore(
   isGuest: boolean = false
 ): Promise<void> {
   try {
-    console.log('Updating weekly score:', { userId, score, gameWon, currentStreak, isGuest });
+    console.log('Starting updateWeeklyScore:', { userId, score, gameWon, currentStreak, isGuest });
     
     const { week_start, week_end } = getCurrentWeekDates();
     console.log('Week dates:', { week_start, week_end });
     
     const collectionName = isGuest ? 'guest_weekly_scores' : 'weekly_scores';
     const weeklyScoreId = `${userId}_${week_start}`;
+    console.log('Weekly score document ID:', weeklyScoreId);
+    
     const weeklyScoreRef = doc(db, collectionName, weeklyScoreId);
     const weeklyScoreDoc = await getDoc(weeklyScoreRef);
     
     if (weeklyScoreDoc.exists()) {
       // Update existing weekly score
       const existingData = weeklyScoreDoc.data() as WeeklyScore;
-      console.log('Existing weekly score:', existingData);
+      console.log('Found existing weekly score:', existingData);
       
       const updatedData: Partial<WeeklyScore> = {
         score: existingData.score + score,
@@ -120,6 +122,7 @@ export async function updateWeeklyScore(
     await updateUserScores(userId, score, currentStreak, isGuest);
   } catch (error) {
     console.error('Error updating weekly score:', error);
+    throw error; // Re-throw to ensure errors are properly handled
   }
 }
 
@@ -191,9 +194,10 @@ export async function getWeeklyLeaderboard(
 ): Promise<LeaderboardEntry[]> {
   try {
     const { week_start } = getCurrentWeekDates();
-    const leaderboard: LeaderboardEntry[] = [];
+    console.log('Fetching leaderboard for week starting:', week_start);
+    let leaderboard: LeaderboardEntry[] = [];
     
-    // Get regular users' scores
+    // Get regular users' scores with proper query
     const weeklyScoresRef = collection(db, 'weekly_scores');
     const weeklyScoresQuery = query(
       weeklyScoresRef,
@@ -203,26 +207,35 @@ export async function getWeeklyLeaderboard(
     );
     
     const weeklyScoresSnapshot = await getDocs(weeklyScoresQuery);
+    console.log('Found regular user scores:', weeklyScoresSnapshot.size);
     
-    // Process regular users
-    for (const scoreDoc of weeklyScoresSnapshot.docs) {
-      const weeklyScore = scoreDoc.data() as WeeklyScore;
-      const userRef = doc(db, 'users', weeklyScore.user_id);
-      const userDoc = await getDoc(userRef);
+    // Batch get all user documents for efficiency
+    const userRefs = weeklyScoresSnapshot.docs.map(scoreDoc => {
+      const data = scoreDoc.data() as WeeklyScore;
+      return doc(db, 'users', data.user_id);
+    });
+    
+    if (userRefs.length > 0) {
+      const userDocs = await Promise.all(userRefs.map(ref => getDoc(ref)));
       
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as User;
+      // Process regular users
+      weeklyScoresSnapshot.docs.forEach((scoreDoc, index) => {
+        const weeklyScore = scoreDoc.data() as WeeklyScore;
+        const userDoc = userDocs[index];
         
-        leaderboard.push({
-          user_id: weeklyScore.user_id,
-          username: userData.username,
-          score: weeklyScore.score,
-          rank: 0, // Will be calculated later
-          games_played: weeklyScore.games_played,
-          games_won: weeklyScore.games_won,
-          best_streak: weeklyScore.best_streak
-        });
-      }
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          leaderboard.push({
+            user_id: weeklyScore.user_id,
+            username: userData.username || `User ${weeklyScore.user_id.substring(0, 4)}`,
+            score: weeklyScore.score,
+            rank: index + 1,
+            games_played: weeklyScore.games_played,
+            games_won: weeklyScore.games_won,
+            best_streak: weeklyScore.best_streak
+          });
+        }
+      });
     }
     
     // Include guest users if requested
@@ -236,37 +249,38 @@ export async function getWeeklyLeaderboard(
       );
       
       const guestScoresSnapshot = await getDocs(guestScoresQuery);
+      console.log('Found guest scores:', guestScoresSnapshot.size);
       
-      for (const scoreDoc of guestScoresSnapshot.docs) {
-        const weeklyScore = scoreDoc.data() as WeeklyScore;
-        const guestRef = doc(db, 'guests', weeklyScore.user_id);
-        const guestDoc = await getDoc(guestRef);
-        
-        if (guestDoc.exists()) {
-          leaderboard.push({
-            user_id: weeklyScore.user_id,
-            username: `Guest ${weeklyScore.user_id.substring(0, 4)}`,
-            score: weeklyScore.score,
-            rank: 0, // Will be calculated later
-            games_played: weeklyScore.games_played,
-            games_won: weeklyScore.games_won,
-            best_streak: weeklyScore.best_streak
-          });
-        }
-      }
+      // Add guest scores directly since we don't need extra user data
+      const guestScores = guestScoresSnapshot.docs.map((doc, index) => {
+        const weeklyScore = doc.data() as WeeklyScore;
+        return {
+          user_id: weeklyScore.user_id,
+          username: `Guest ${weeklyScore.user_id.substring(0, 4)}`,
+          score: weeklyScore.score,
+          rank: index + 1,
+          games_played: weeklyScore.games_played,
+          games_won: weeklyScore.games_won,
+          best_streak: weeklyScore.best_streak
+        };
+      });
+      
+      // Combine and sort all scores
+      leaderboard = [...leaderboard, ...guestScores]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxEntries);
+      
+      // Reassign ranks after combining
+      leaderboard.forEach((entry, index) => {
+        entry.rank = index + 1;
+      });
     }
     
-    // Sort by score and assign ranks
-    leaderboard.sort((a, b) => b.score - a.score);
-    leaderboard.forEach((entry, index) => {
-      entry.rank = index + 1;
-    });
-    
-    // Limit to requested number of entries
-    return leaderboard.slice(0, maxEntries);
+    console.log('Final leaderboard entries:', leaderboard.length);
+    return leaderboard;
   } catch (error) {
     console.error('Error getting weekly leaderboard:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -283,33 +297,42 @@ export async function getUserLeaderboardPosition(
   try {
     const { week_start } = getCurrentWeekDates();
     const collectionName = isGuest ? 'guest_weekly_scores' : 'weekly_scores';
-    const weeklyScoreId = `${userId}_${week_start}`;
-    const weeklyScoreRef = doc(db, collectionName, weeklyScoreId);
-    const weeklyScoreDoc = await getDoc(weeklyScoreRef);
-    
-    if (!weeklyScoreDoc.exists()) {
-      return null;
-    }
-    
-    const weeklyScore = weeklyScoreDoc.data() as WeeklyScore;
     
     // Get all scores for the current week to determine rank
-    const allScoresRef = collection(db, collectionName);
-    const allScoresQuery = query(
-      allScoresRef,
+    const scoresRef = collection(db, collectionName);
+    const scoresQuery = query(
+      scoresRef,
       where('week_start', '==', week_start),
       orderBy('score', 'desc')
     );
     
-    const allScoresSnapshot = await getDocs(allScoresQuery);
-    const allScores = allScoresSnapshot.docs.map(doc => doc.data() as WeeklyScore);
+    const scoresSnapshot = await getDocs(scoresQuery);
+    const userScoreDoc = scoresSnapshot.docs.find(doc => {
+      const data = doc.data() as WeeklyScore;
+      return data.user_id === userId;
+    });
     
-    // Find user's rank
-    const rank = allScores.findIndex(score => score.user_id === userId) + 1;
+    if (!userScoreDoc) {
+      return null;
+    }
+    
+    const weeklyScore = userScoreDoc.data() as WeeklyScore;
+    const rank = scoresSnapshot.docs.findIndex(doc => doc.id === userScoreDoc.id) + 1;
+    
+    if (isGuest) {
+      return {
+        user_id: userId,
+        username: `Guest ${userId.substring(0, 4)}`,
+        score: weeklyScore.score,
+        rank,
+        games_played: weeklyScore.games_played,
+        games_won: weeklyScore.games_won,
+        best_streak: weeklyScore.best_streak
+      };
+    }
     
     // Get user data
-    const userCollectionName = isGuest ? 'guests' : 'users';
-    const userRef = doc(db, userCollectionName, userId);
+    const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) {
@@ -320,7 +343,7 @@ export async function getUserLeaderboardPosition(
     
     return {
       user_id: userId,
-      username: isGuest ? `Guest ${userId.substring(0, 4)}` : userData.username,
+      username: userData.username,
       score: weeklyScore.score,
       rank,
       games_played: weeklyScore.games_played,

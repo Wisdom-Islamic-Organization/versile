@@ -359,13 +359,13 @@ function GameScreen() {
       const success = isCorrectWord;
       gameState.gameOver = true;
 
-      // Calculate score
-      const currentStreak = user?.streak || 0;
-      const score = calculateGameScore(newGuesses.length, success, currentStreak);
-      setGameScore(score);
-      
-      // Update user progress in Firebase
+      // Update user progress in Firebase first to get the correct score with updated streak
       await updateUserProgress(currentWord.id, newGuesses.length, success);
+      
+      // Calculate score for display
+      const currentStreak = user?.streak || 0;
+      const score = calculateGameScore(newGuesses.length, success, currentStreak + (success ? 1 : 0));
+      setGameScore(score);
       
       // Ensure we set the last played date
       await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);

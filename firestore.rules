@@ -8,9 +8,12 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.token.admin == true;
     }
     
-    // Users collection - allow read/write if authenticated and it's their own data
+    // Users collection - allow reading basic info for leaderboard, but full access only for own data
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow reading basic user info (username) for leaderboard
+      allow read: if true;
+      // Allow full read/write only for own data
+      allow write: if request.auth != null && request.auth.uid == userId;
       
       // User data subcollection - allow access to own data
       match /user_data/{docId} {
@@ -23,9 +26,12 @@ service cloud.firestore {
       allow read, write: if request.auth != null && sessionId.matches(request.auth.uid + ".*");
     }
     
-    // Guest users collection - allow read/write if authenticated as that guest
+    // Guest users collection - allow reading basic info for leaderboard
     match /guests/{guestId} {
-      allow read, write: if request.auth != null && request.auth.uid == guestId;
+      // Allow reading basic guest info for leaderboard
+      allow read: if true;
+      // Allow write only for own data
+      allow write: if request.auth != null && request.auth.uid == guestId;
       
       // Guest data subcollection - allow access to own data
       match /user_data/{docId} {
@@ -40,13 +46,13 @@ service cloud.firestore {
     
     // Weekly scores - allow read for everyone, write only for the user's own score
     match /weekly_scores/{scoreId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if request.auth != null && scoreId.matches(request.auth.uid + ".*");
     }
     
     // Guest weekly scores - allow read for everyone, write only for the guest's own score
     match /guest_weekly_scores/{scoreId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if request.auth != null && scoreId.matches(request.auth.uid + ".*");
     }
     
