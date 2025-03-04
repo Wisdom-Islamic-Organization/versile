@@ -60,6 +60,10 @@ const colors: ColorScheme = {
       dark: '#121213'
     },
     overlay: 'rgba(0, 0, 0, 0.5)'
+  },
+  border: {
+    light: '#D3D6DA',
+    dark: '#3A3A3C'
   }
 };
 

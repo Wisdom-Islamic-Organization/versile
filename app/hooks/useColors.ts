@@ -63,6 +63,10 @@ export default function useColors(): ColorScheme {
         dark: colors.modal.background.dark
       },
       overlay: colors.modal.overlay
+    },
+    border: {
+      light: colors.border.light,
+      dark: colors.border.dark
     }
   };
 }; 

@@ -6,15 +6,16 @@ import {
   TouchableOpacity, 
   Modal, 
   Image,
-  Platform
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import useColors from '../hooks/useColors';
 import useTheme from '../context/ThemeContext';
 import { router } from 'expo-router';
+import ProfileModal from './ProfileModal';
 
 const ProfileButton = () => {
   const [modalVisible, setModalVisible] = useState(false);
+  const [detailsUpdateModalVisible, setDetailsUpdateModalVisible] = useState(false);
   const { user, isGuest, signOut, signInWithGoogle, isWeb } = useAuth();
   const colors = useColors();
   const { theme } = useTheme();
@@ -96,6 +97,14 @@ const ProfileButton = () => {
                     Your progress will be saved locally on this device
                   </Text>
                 )}
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={styles.updateDetailsButton}
+                    onPress={() => setDetailsUpdateModalVisible(true)}
+                  >
+                    <Text style={[styles.updateDetailsText, { color: colors.text[theme] }]}>Update Details</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : (
               <View style={styles.userInfo}>
@@ -129,6 +138,15 @@ const ProfileButton = () => {
                     </Text>
                   </View>
                 </View>
+
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={styles.updateDetailsButton}
+                    onPress={() => setDetailsUpdateModalVisible(true)}
+                  >
+                    <Text style={[styles.updateDetailsText, { color: colors.text[theme] }]}>Update Details</Text>
+                  </TouchableOpacity>
+                </View>
                 
                 <TouchableOpacity
                   style={[
@@ -146,6 +164,10 @@ const ProfileButton = () => {
                 </TouchableOpacity>
               </View>
             )}
+            <ProfileModal 
+              visible={detailsUpdateModalVisible}
+              onClose={() => setDetailsUpdateModalVisible(false)}
+            />
           </View>
         </View>
       </Modal>
@@ -296,6 +318,19 @@ const styles = StyleSheet.create({
   signOutText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  updateDetailsButton: {
+    padding: 12,
+    borderRadius: 8,
+    width: '100%',
+  },
+  updateDetailsText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

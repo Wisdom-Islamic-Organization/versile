@@ -19,16 +19,17 @@ export interface QuranicWord {
 
 export interface User {
   id: string;
-  username: string;
-  email: string;
-  streak: number;
+  username?: string;
+  email?: string;
+  phone?: string;
+  streak?: number;
   last_played: string;
   guessed_words: string[];
-  total_score: number;
-  current_week_score: number;
-  best_week_score: number;
-  longest_streak: number;
-  last_week_start: string;
+  total_score?: number;
+  current_week_score?: number;
+  best_week_score?: number;
+  longest_streak?: number;
+  last_week_start?: string;
 }
 
 export interface GameSession {
@@ -94,6 +95,10 @@ export interface ColorScheme {
   correct: string;
   present: string;
   absent: string;
+  border: {
+    light: string;
+    dark: string;
+  };
   button: {
     background: {
       light: string;
