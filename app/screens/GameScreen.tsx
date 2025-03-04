@@ -108,42 +108,56 @@ function GameScreen() {
           console.error('Error checking completion status during init:', error);
         }
         
-        // IMPORTANT: Only reset the game state if the user hasn't completed today's game
-        if (!hasCompleted) {
-          // Reset game state to avoid any stale state
-          setGuesses([]);
-          setLetterStates({});
-          setGameOver(false);
-          setShowWordDetails(false);
-          
-          // Reset the saved state as well
-          const resetState: GameState = {
-            guesses: [],
-            letterStates: {},
-            gameOver: false,
-            showWordDetails: false
-          };
-          
-          if (userId) {
-            await saveGameState(userId, resetState, isGuest);
-          }
-        }
-        // If user has completed today's game, load the saved state
-        else if (lastPlayedDate === today) {
+        // If user has completed today's game, load the saved state and prevent new plays
+        if (hasCompleted) {
           try {
             const savedState = await getGameState(userId, isGuest);
             
             if (savedState) {
               setGuesses(savedState.guesses || []);
               setLetterStates(savedState.letterStates || {});
-              
-              // For completed games, always show game over and word details
               setGameOver(true);
               setShowWordDetails(true);
             }
           } catch (error) {
             console.error('Error loading saved game state:', error);
-            // Continue without saved state if loading fails
+          }
+        } else {
+          // Try to load any existing game state first
+          try {
+            const savedState = await getGameState(userId, isGuest);
+            if (savedState && savedState.guesses && savedState.guesses.length > 0) {
+              // If there's an existing game state with guesses, load it
+              setGuesses(savedState.guesses);
+              setLetterStates(savedState.letterStates || {});
+              setGameOver(savedState.gameOver || false);
+              setShowWordDetails(savedState.showWordDetails || false);
+            } else {
+              // Only reset if there's no existing game state
+              setGuesses([]);
+              setLetterStates({});
+              setGameOver(false);
+              setShowWordDetails(false);
+              
+              // Reset the saved state as well
+              const resetState: GameState = {
+                guesses: [],
+                letterStates: {},
+                gameOver: false,
+                showWordDetails: false
+              };
+              
+              if (userId) {
+                await saveGameState(userId, resetState, isGuest);
+              }
+            }
+          } catch (error) {
+            console.error('Error loading existing game state:', error);
+            // If there's an error loading the state, reset the game
+            setGuesses([]);
+            setLetterStates({});
+            setGameOver(false);
+            setShowWordDetails(false);
           }
         }
         
@@ -162,16 +176,16 @@ function GameScreen() {
     // Start initialization
     init();
   }, [user, isGuest]);
-  
-  // Add a new useEffect to ensure word details are shown when hasCompletedToday is true
+
+  // Add a new useEffect to prevent game interaction if completed
   useEffect(() => {
-    if (hasCompletedToday && currentWord) {
-      console.log('User has completed today\'s game, showing word details');
+    if (hasCompletedToday) {
+      console.log('User has completed today\'s game, preventing new plays');
       setGameOver(true);
       setShowWordDetails(true);
     }
-  }, [hasCompletedToday, currentWord]);
-  
+  }, [hasCompletedToday]);
+
   // Add a debug useEffect to log state changes
   useEffect(() => {
     console.log('Game state updated:', { 
@@ -288,7 +302,7 @@ function GameScreen() {
   };
 
   const handleKeyPress = (key: string) => {
-    if (gameOver || !currentWord) return;
+    if (gameOver || !currentWord || hasCompletedToday) return;
 
     if (key === '⌫') {
       setCurrentGuess(prev => prev.slice(0, -1));
@@ -304,7 +318,7 @@ function GameScreen() {
   };
 
   const submitGuess = async () => {
-    if (!currentWord) return;
+    if (!currentWord || hasCompletedToday) return;
     
     const targetWord = currentWord.id.toLowerCase();
     const guessResult: GuessResult[] = [];
@@ -352,7 +366,6 @@ function GameScreen() {
       gameOver: gameOver,
       showWordDetails: showWordDetails
     };
-    
 
     if (isCorrectWord || newGuesses.length >= MAX_ATTEMPTS) {
       setGameOver(true);
@@ -374,12 +387,7 @@ function GameScreen() {
       }
       
       if (success) {
-        // Only update the game state, don't automatically show word details
         gameState.showWordDetails = false;
-        // Let the user see they won first, don't immediately show word details
-        // setShowWordDetails(true);
-        
-        // Show game over screen with success message
         setShowGameOver(true);
       } else {
         setShowGameOver(true);
@@ -387,7 +395,6 @@ function GameScreen() {
     }
 
     // Always save game state to Firebase for authenticated users
-    // This ensures cross-device synchronization
     if (userId) {
       await saveGameState(userId, gameState, isGuest);
     }
