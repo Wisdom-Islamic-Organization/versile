@@ -96,28 +96,18 @@ function GameScreen() {
             }
           } catch (error) {
             console.error('Error getting last played date from Firebase:', error);
-            // Continue with localStorage date if Firebase fails
           }
         }
-        
-        // Check if user has completed today's game
-        let hasCompleted = false;
-        try {
-          hasCompleted = await hasCompletedPlayingToday();
-          setHasCompletedToday(hasCompleted);
-        } catch (error) {
-          console.error('Error checking completion status during init:', error);
-        }
 
-        // If it's a new day, reset the game state
+        // If it's a new day, reset everything
         if (lastPlayedDate !== today) {
-          // Reset all game state
+          console.log('New day detected, resetting game state');
           setGuesses([]);
           setLetterStates({});
           setGameOver(false);
           setShowWordDetails(false);
+          setHasCompletedToday(false);
           
-          // Reset the saved state
           const resetState: GameState = {
             guesses: [],
             letterStates: {},
@@ -128,72 +118,41 @@ function GameScreen() {
           if (userId) {
             await saveGameState(userId, resetState, isGuest);
           }
-        } else if (hasCompleted) {
-          // If user has completed today's game, load the saved state and prevent new plays
+        } else {
+          // Check if user has completed today's game
+          const hasCompleted = await hasCompletedPlayingToday();
+          setHasCompletedToday(hasCompleted);
+          
+          // Load saved state
           try {
             const savedState = await getGameState(userId, isGuest);
             
             if (savedState) {
               setGuesses(savedState.guesses || []);
               setLetterStates(savedState.letterStates || {});
-              setGameOver(true);
-              setShowWordDetails(true);
-            }
-          } catch (error) {
-            console.error('Error loading saved game state:', error);
-          }
-        } else {
-          // Try to load any existing game state
-          try {
-            const savedState = await getGameState(userId, isGuest);
-            if (savedState && savedState.guesses && savedState.guesses.length > 0) {
-              // If there's an existing game state with guesses, load it
-              setGuesses(savedState.guesses);
-              setLetterStates(savedState.letterStates || {});
               setGameOver(savedState.gameOver || false);
-              setShowWordDetails(savedState.showWordDetails || false);
-            } else {
-              // Only reset if there's no existing game state
-              setGuesses([]);
-              setLetterStates({});
-              setGameOver(false);
-              setShowWordDetails(false);
               
-              // Reset the saved state as well
-              const resetState: GameState = {
-                guesses: [],
-                letterStates: {},
-                gameOver: false,
-                showWordDetails: false
-              };
-              
-              if (userId) {
-                await saveGameState(userId, resetState, isGuest);
+              // Only show word details if the game was won
+              if (savedState.guesses && savedState.guesses.length > 0) {
+                const lastGuess = savedState.guesses[savedState.guesses.length - 1];
+                const wasGameWon = lastGuess.every(g => g.status === 'correct');
+                setShowWordDetails(wasGameWon && savedState.showWordDetails);
               }
             }
           } catch (error) {
-            console.error('Error loading existing game state:', error);
-            // If there's an error loading the state, reset the game
-            setGuesses([]);
-            setLetterStates({});
-            setGameOver(false);
-            setShowWordDetails(false);
+            console.error('Error loading saved game state:', error);
           }
         }
         
         // Fetch daily word
         await fetchDailyWord();
-        
-        // Ensure loading state is set to false
         setLoading(false);
       } catch (error) {
         console.error('Error during initialization:', error);
-        // Ensure loading states are set to false even if there's an error
         setLoading(false);
       }
     };
     
-    // Start initialization
     init();
   }, [user, isGuest]);
 
