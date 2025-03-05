@@ -108,9 +108,28 @@ function GameScreen() {
         } catch (error) {
           console.error('Error checking completion status during init:', error);
         }
-        
-        // If user has completed today's game, load the saved state and prevent new plays
-        if (hasCompleted) {
+
+        // If it's a new day, reset the game state
+        if (lastPlayedDate !== today) {
+          // Reset all game state
+          setGuesses([]);
+          setLetterStates({});
+          setGameOver(false);
+          setShowWordDetails(false);
+          
+          // Reset the saved state
+          const resetState: GameState = {
+            guesses: [],
+            letterStates: {},
+            gameOver: false,
+            showWordDetails: false
+          };
+          
+          if (userId) {
+            await saveGameState(userId, resetState, isGuest);
+          }
+        } else if (hasCompleted) {
+          // If user has completed today's game, load the saved state and prevent new plays
           try {
             const savedState = await getGameState(userId, isGuest);
             
@@ -124,7 +143,7 @@ function GameScreen() {
             console.error('Error loading saved game state:', error);
           }
         } else {
-          // Try to load any existing game state first
+          // Try to load any existing game state
           try {
             const savedState = await getGameState(userId, isGuest);
             if (savedState && savedState.guesses && savedState.guesses.length > 0) {

@@ -343,7 +343,7 @@ export async function getUserLeaderboardPosition(
     
     return {
       user_id: userId,
-      username: userData.username,
+      username: userData.username || `User ${userId.substring(0, 4)}`,
       score: weeklyScore.score,
       rank,
       games_played: weeklyScore.games_played,
