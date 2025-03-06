@@ -8,7 +8,7 @@ import {
   saveGameSession, 
   updateUserData 
 } from '../utils/firestore';
-import { calculateGameScore, updateWeeklyScore, getCurrentWeekDates } from '../utils/leaderboard';
+import { calculateGameScore, updateWeeklyScore, getCurrentWeekDates, getFormattedDate } from '../utils/leaderboard';
 
 export default function useUserProgress() {
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,8 @@ export default function useUserProgress() {
 
   const updateUserProgress = async (wordId: string, attempts: number, success: boolean) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      // Get today's date in consistent format
+      const today = getFormattedDate(new Date());
       
       // Calculate new streak first
       let newStreak = 0;

@@ -43,18 +43,35 @@ export function calculateGameScore(attempts: number, success: boolean, currentSt
   return score;
 }
 
+// Helper function to get date in IST (GMT+5:30) format
+export function getFormattedDate(date: Date): string {
+  // Convert to IST (GMT+5:30)
+  const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+  return `${istTime.getUTCFullYear()}-${String(istTime.getUTCMonth() + 1).padStart(2, '0')}-${String(istTime.getUTCDate()).padStart(2, '0')}`;
+}
+
 /**
  * Get the current week's start and end dates
  * @returns Object with week_start and week_end as ISO date strings
  */
 export function getCurrentWeekDates(): { week_start: string, week_end: string } {
-  const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Week starts on Monday
-  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const now = new Date();
+  // Convert to IST (GMT+5:30)
+  const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  
+  const dayOfWeek = istTime.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
+  
+  // Calculate the start of the week (Sunday)
+  const startOfWeek = new Date(istTime);
+  startOfWeek.setUTCDate(istTime.getUTCDate() - dayOfWeek);
+  
+  // Calculate the end of the week (Saturday)
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6);
   
   return {
-    week_start: format(weekStart, 'yyyy-MM-dd'),
-    week_end: format(weekEnd, 'yyyy-MM-dd')
+    week_start: getFormattedDate(startOfWeek),
+    week_end: getFormattedDate(endOfWeek)
   };
 }
 

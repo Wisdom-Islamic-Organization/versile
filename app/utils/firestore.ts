@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { User, GameSession, GameState } from '../types';
+import { getFormattedDate } from './leaderboard';
 
 // Storage keys (for consistent naming in Firestore)
 export const STORAGE_KEYS = {
@@ -206,7 +207,7 @@ export const saveGameSession = async (
   isGuest: boolean = false
 ): Promise<void> => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getFormattedDate(new Date());
     const collectionName = isGuest ? 'guest_sessions' : 'game_sessions';
     const sessionRef = doc(db, collectionName, `${userId}_${today}`);
     await setDoc(sessionRef, sessionData);
@@ -236,45 +237,19 @@ export const getGameSession = async (
 };
 
 // Helper to check if user has played today
-export const hasCompletedPlayingToday = async (
-  userId: string, 
-  isGuest: boolean = false
-): Promise<boolean> => {
+export async function checkCompletedToday(userId: string, isGuest: boolean = false): Promise<boolean> {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getFormattedDate(new Date());
     
-    // Check game session first
-    const collectionName = isGuest ? 'guest_sessions' : 'game_sessions';
-    const sessionRef = doc(db, collectionName, `${userId}_${today}`);
-    const sessionDoc = await getDoc(sessionRef);
-    
-    if (sessionDoc.exists()) {
-      const sessionData = sessionDoc.data() as GameSession;
-      return sessionData.success || false;
-    }
-    
-    // Check user's last_played date
-    if (!isGuest) {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as User;
-        return userData.last_played === today;
-      }
+    if (isGuest) {
+      const guestData = await getGuestData(userId);
+      return !!(guestData && guestData.last_played === today);
     } else {
-      const guestRef = doc(db, 'guests', userId);
-      const guestDoc = await getDoc(guestRef);
-      
-      if (guestDoc.exists()) {
-        const guestData = guestDoc.data();
-        return guestData.last_played === today;
-      }
+      const userData = await getUserData(userId);
+      return !!(userData && userData.last_played === today);
     }
-    
-    return false;
   } catch (error) {
-    console.error('Error checking completion status:', error);
+    console.error('Error checking if user completed today:', error);
     return false;
   }
-}; 
+} 

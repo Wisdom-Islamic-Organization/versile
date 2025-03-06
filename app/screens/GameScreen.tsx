@@ -21,7 +21,7 @@ import {
   getGameState, 
   saveUserPreference, 
   getUserPreference,
-  hasCompletedPlayingToday as checkCompletedToday,
+  checkCompletedToday,
 } from '../utils/firestore';
 import { useAuth } from '../context/AuthContext';
 import GameOver from '../components/GameOver';
@@ -68,6 +68,14 @@ function GameScreen() {
   const [detailsUpdateModalVisible, setDetailsUpdateModalVisible] = useState(false);
   const colors = useColors();
 
+  // Helper function to get today's date in IST (GMT+5:30)
+  const getTodayDateString = (): string => {
+    const now = new Date();
+    // Convert to IST (GMT+5:30)
+    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    return `${istTime.getUTCFullYear()}-${String(istTime.getUTCMonth() + 1).padStart(2, '0')}-${String(istTime.getUTCDate()).padStart(2, '0')}`;
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -79,7 +87,9 @@ function GameScreen() {
         
         // Get the last played date - first try localStorage for speed
         let lastPlayedDate = await getFromLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, '');
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDateString();
+        
+        console.log('Date comparison:', { lastPlayedDate, today, isNewDay: lastPlayedDate !== today });
         
         // For authenticated users, also check Firebase for cross-device sync
         const userId = user?.id || '';
@@ -120,23 +130,35 @@ function GameScreen() {
           }
         } else {
           // Check if user has completed today's game
-          const hasCompleted = await hasCompletedPlayingToday();
+          const userId = user?.id || '';
+          const hasCompleted = await checkCompletedToday(userId, isGuest);
+          console.log('Has completed today:', hasCompleted);
           setHasCompletedToday(hasCompleted);
           
           // Load saved state
           try {
             const savedState = await getGameState(userId, isGuest);
+            console.log('Loaded saved state:', savedState);
             
             if (savedState) {
               setGuesses(savedState.guesses || []);
               setLetterStates(savedState.letterStates || {});
               setGameOver(savedState.gameOver || false);
               
-              // Only show word details if the game was won
+              // Only show word details if the game was won or lost with max attempts
               if (savedState.guesses && savedState.guesses.length > 0) {
                 const lastGuess = savedState.guesses[savedState.guesses.length - 1];
                 const wasGameWon = lastGuess.every(g => g.status === 'correct');
-                setShowWordDetails(wasGameWon && savedState.showWordDetails);
+                const maxAttemptsReached = savedState.guesses.length >= MAX_ATTEMPTS;
+                
+                // Only show word details if game is over (won or max attempts)
+                setShowWordDetails((wasGameWon || maxAttemptsReached) && savedState.gameOver);
+                console.log('Word details visibility:', { 
+                  wasGameWon, 
+                  maxAttemptsReached, 
+                  gameOver: savedState.gameOver,
+                  showWordDetails: (wasGameWon || maxAttemptsReached) && savedState.gameOver
+                });
               }
             }
           } catch (error) {
@@ -252,7 +274,7 @@ function GameScreen() {
         });
         
         // Save today's date to localStorage
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDateString();
         await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
         
         // For authenticated users, also save to Firebase for cross-device sync
@@ -326,7 +348,7 @@ function GameScreen() {
     setCurrentGuess('');
 
     // Save today's date to localStorage and Firebase for authenticated users
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
     
     // For authenticated users, also save to Firebase for cross-device sync
@@ -402,7 +424,7 @@ function GameScreen() {
     }
 
     // Save today's date to localStorage
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     await saveToLocalStorage(LOCAL_STORAGE_KEYS.LAST_PLAYED_DATE, today);
     
     // For authenticated users, also save to Firebase for cross-device sync
@@ -440,8 +462,6 @@ function GameScreen() {
   const hasCompletedPlayingToday = async () => {
     try {
       const userId = user?.id || '';
-      if (!userId) return false;
-      
       return await checkCompletedToday(userId, isGuest);
     } catch (error) {
       console.error('Error checking completion status:', error);
