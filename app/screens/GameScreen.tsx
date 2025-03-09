@@ -28,6 +28,7 @@ import GameOver from '../components/GameOver';
 import { calculateGameScore } from '../utils/leaderboard';
 import { saveToLocalStorage, getFromLocalStorage, LOCAL_STORAGE_KEYS } from '../utils/localStorage';
 import ProfileModal from '../components/ProfileModal';
+import { getFormattedDate } from '../utils/leaderboard';
 
 const MAX_ATTEMPTS = 6;
 
@@ -70,10 +71,7 @@ function GameScreen() {
 
   // Helper function to get today's date in IST (GMT+5:30)
   const getTodayDateString = (): string => {
-    const now = new Date();
-    // Convert to IST (GMT+5:30)
-    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-    return `${istTime.getUTCFullYear()}-${String(istTime.getUTCMonth() + 1).padStart(2, '0')}-${String(istTime.getUTCDate()).padStart(2, '0')}`;
+    return getFormattedDate(new Date());
   };
 
   useEffect(() => {
@@ -944,6 +942,7 @@ function GameScreen() {
                 attempts={guesses.length}
                 score={gameScore}
                 onClose={handleGameOverClose}
+                guesses={guesses}
               />
             </View>
           </Modal>

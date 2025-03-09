@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { User } from '../types';
 import useColors from '../hooks/useColors';
 import useTheme from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { getUserLeaderboardPosition } from '../utils/leaderboard';
 
 interface UserStatsProps {
   user: User;
@@ -14,6 +15,23 @@ const UserStats: React.FC<UserStatsProps> = ({ user }) => {
   const colors = useColors();
   const { theme } = useTheme();
   const router = useRouter();
+  const [weeklyScore, setWeeklyScore] = useState(0);
+
+  useEffect(() => {
+    async function fetchWeeklyScore() {
+      if (user?.id) {
+        const isGuest = user.id.startsWith('guest_');
+        const position = await getUserLeaderboardPosition(user.id, isGuest);
+        if (position) {
+          setWeeklyScore(position.score);
+        } else {
+          setWeeklyScore(0);
+        }
+      }
+    }
+    
+    fetchWeeklyScore();
+  }, [user]);
 
   const styles = StyleSheet.create({
     container: {
@@ -126,7 +144,7 @@ const UserStats: React.FC<UserStatsProps> = ({ user }) => {
           Weekly Score
         </Text>
         <Text style={[styles.scoreValue, { color: colors.correct }]}>
-          {user?.current_week_score || 0}
+          {weeklyScore}
         </Text>
         <TouchableOpacity 
           style={[styles.leaderboardButton, { backgroundColor: colors.correct + '20', borderColor: colors.correct }]} 

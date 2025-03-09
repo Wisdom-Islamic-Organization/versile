@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { useState } from 'react';
 import { db } from '../config/firebase';
-import { User, GameSession } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { 
-  createOrUpdateGuestData, 
-  saveGameSession, 
-  updateUserData 
+import { GameSession, User } from '../types';
+import {
+  createOrUpdateGuestData,
+  saveGameSession,
+  updateUserData
 } from '../utils/firestore';
-import { calculateGameScore, updateWeeklyScore, getCurrentWeekDates, getFormattedDate } from '../utils/leaderboard';
+import { calculateGameScore, getCurrentWeekDates, getFormattedDate, updateWeeklyScore } from '../utils/leaderboard';
 
 export default function useUserProgress() {
   const [loading, setLoading] = useState(true);
@@ -35,18 +35,33 @@ export default function useUserProgress() {
       
       // Calculate new streak first
       let newStreak = 0;
-      const lastPlayed = user?.last_played ? new Date(user.last_played) : null;
+      const lastPlayed = user?.last_played;
       if (success && lastPlayed) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayString = getFormattedDate(yesterday);
         
-        if (lastPlayed.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
+        if (lastPlayed === yesterdayString) {
+          // If last played was yesterday, increment streak
           newStreak = (user?.streak || 0) + 1;
         } else {
-          newStreak = 1;
+          // Check if last played was today
+          const todayString = getFormattedDate(new Date());
+          
+          if (lastPlayed === todayString) {
+            // If already played today, maintain current streak
+            newStreak = user?.streak || 0;
+          } else {
+            // If there was a gap, reset streak to 1
+            newStreak = 1;
+          }
         }
       } else if (success) {
+        // First time playing or no last played date
         newStreak = 1;
+      } else {
+        // Failed challenge
+        newStreak = 0;
       }
       
       // Calculate score with new streak

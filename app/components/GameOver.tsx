@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import useTheme from '../context/ThemeContext';
@@ -11,9 +11,17 @@ interface GameOverProps {
   attempts: number;
   score: number;
   onClose: () => void;
+  guesses?: any[][]; // Add this prop to receive the guesses pattern
 }
 
-const GameOver: React.FC<GameOverProps> = ({ success, word, attempts, score, onClose }) => {
+const GameOver: React.FC<GameOverProps> = ({ 
+  success, 
+  word, 
+  attempts, 
+  score, 
+  onClose,
+  guesses = [] 
+}) => {
   const { theme } = useTheme();
   const colors = useColors();
   const router = useRouter();
@@ -21,6 +29,63 @@ const GameOver: React.FC<GameOverProps> = ({ success, word, attempts, score, onC
   const viewLeaderboard = () => {
     onClose();
     router.push('/leaderboard');
+  };
+
+  // Generate share text with emoji squares
+  const generateShareText = () => {
+    // App name and day's result
+    let shareText = `Versile ${success ? attempts : 'X'}/6\n\n`;
+    
+    // Add emoji grid representation of guesses
+    if (guesses && guesses.length > 0) {
+      guesses.forEach(row => {
+        let rowText = '';
+        row.forEach(cell => {
+          if (cell.status === 'correct') {
+            rowText += '🟩'; // Green square for correct
+          } else if (cell.status === 'present') {
+            rowText += '🟨'; // Yellow square for present
+          } else {
+            rowText += '⬛'; // Black square for absent
+          }
+        });
+        shareText += rowText + '\n';
+      });
+    }
+    
+    // Add score and link
+    shareText += `\nScore: ${score}\n`;
+    shareText += `\nPlay Versile: https://versile.keralastudentsconference.com`;
+    
+    return shareText;
+  };
+
+  // Handle share button press
+  const handleShare = async () => {
+    try {
+      const shareText = generateShareText();
+      
+      if (Platform.OS === 'web') {
+        // Web implementation using clipboard
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(shareText);
+          alert('Results copied to clipboard!');
+        } else {
+          alert('Clipboard access not available in your browser');
+        }
+      } else {
+        // Native share implementation
+        const result = await Share.share({
+          message: shareText
+        });
+        
+        if (result.action === Share.sharedAction) {
+          console.log('Shared successfully');
+        }
+      }
+    } catch (error) {
+      console.error('Error sharing results:', error);
+    }
   };
 
   return (
@@ -60,6 +125,20 @@ const GameOver: React.FC<GameOverProps> = ({ success, word, attempts, score, onC
       </View>
 
       <View style={styles.actions}>
+        {/* Share button - show for both win and lose cases */}
+        <TouchableOpacity 
+          style={[styles.shareButton, { 
+            backgroundColor: colors.secondaryText[theme] + '20',
+            borderColor: colors.secondaryText[theme]
+          }]} 
+          onPress={handleShare}
+        >
+          <Ionicons name="share-social" size={20} color={colors.secondaryText[theme]} style={styles.buttonIcon} />
+          <Text style={[styles.shareButtonText, { color: colors.secondaryText[theme] }]}>
+            Share Results
+          </Text>
+        </TouchableOpacity>
+
         {success && (
           <TouchableOpacity 
             style={[styles.leaderboardButton, { backgroundColor: colors.correct }]} 
@@ -69,6 +148,7 @@ const GameOver: React.FC<GameOverProps> = ({ success, word, attempts, score, onC
             <Text style={styles.leaderboardButtonText}>View Leaderboard</Text>
           </TouchableOpacity>
         )}
+        
         <TouchableOpacity 
           style={[styles.closeModalButton, { 
             backgroundColor: success ? colors.surface[theme] : colors.correct,
@@ -135,6 +215,21 @@ const styles = StyleSheet.create({
   },
   actions: {
     alignItems: 'center',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 10,
+    width: '100%',
+    borderWidth: 1,
+  },
+  shareButtonText: {
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   leaderboardButton: {
     flexDirection: 'row',
