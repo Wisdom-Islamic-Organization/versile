@@ -59,15 +59,18 @@ export function getCurrentWeekDates(): { week_start: string, week_end: string } 
   // Convert to IST (GMT+5:30)
   const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
   
-  const dayOfWeek = istTime.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
+  // Use getDay() instead of getUTCDay() since we've already adjusted for IST
+  const dayOfWeek = istTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
   
-  // Calculate the start of the week (Sunday)
+  // Calculate the start of the week (Monday)
   const startOfWeek = new Date(istTime);
-  startOfWeek.setUTCDate(istTime.getUTCDate() - dayOfWeek);
+  // If today is Sunday (0), go back 6 days to previous Monday
+  // Otherwise subtract (dayOfWeek - 1) to get to Monday
+  startOfWeek.setDate(istTime.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   
-  // Calculate the end of the week (Saturday)
+  // Calculate the end of the week (Sunday)
   const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
   
   return {
     week_start: getFormattedDate(startOfWeek),
