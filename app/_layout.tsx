@@ -110,6 +110,14 @@ function LayoutContent() {
           headerTitle: '',
         }}
       >
+        <Stack.Screen
+          name="previous-week"
+          options={{
+            headerTitle: "Previous Week's Top 3",
+            headerShown: true,
+          }}
+        />
+        
         <Tabs.Screen
           name="game"
           options={{

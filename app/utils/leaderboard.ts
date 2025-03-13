@@ -79,6 +79,38 @@ export function getCurrentWeekDates(): { week_start: string, week_end: string } 
 }
 
 /**
+ * Get the previous week's start and end dates
+ * @returns Object with week_start and week_end as ISO date strings
+ */
+export function getPreviousWeekDates(): { week_start: string, week_end: string } {
+  const now = new Date();
+  // Convert to IST (GMT+5:30)
+  const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  
+  // Use getDay() instead of getUTCDay() since we've already adjusted for IST
+  const dayOfWeek = istTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  
+  // Calculate the start of the current week (Monday)
+  const startOfCurrentWeek = new Date(istTime);
+  // If today is Sunday (0), go back 6 days to previous Monday
+  // Otherwise subtract (dayOfWeek - 1) to get to Monday
+  startOfCurrentWeek.setDate(istTime.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  
+  // Calculate the start of the previous week (7 days before current week start)
+  const startOfPrevWeek = new Date(startOfCurrentWeek);
+  startOfPrevWeek.setDate(startOfCurrentWeek.getDate() - 7);
+  
+  // Calculate the end of the previous week (Sunday)
+  const endOfPrevWeek = new Date(startOfPrevWeek);
+  endOfPrevWeek.setDate(startOfPrevWeek.getDate() + 6);
+  
+  return {
+    week_start: getFormattedDate(startOfPrevWeek),
+    week_end: getFormattedDate(endOfPrevWeek)
+  };
+}
+
+/**
  * Update a user's weekly score
  * @param userId User ID
  * @param score Score to add
@@ -373,5 +405,131 @@ export async function getUserLeaderboardPosition(
   } catch (error) {
     console.error('Error getting user leaderboard position:', error);
     return null;
+  }
+}
+
+/**
+ * Get the top positions from the previous week's leaderboard with tiebreaker logic
+ * 
+ * Tiebreaker logic:
+ * 1. Higher score comes first
+ * 2. If scores are tied, higher win rate (games_won/games_played) comes first
+ * 3. If win rates are tied, higher best_streak comes first
+ * 4. If all above are tied, lower games_played comes first (achieved score in fewer games)
+ * 
+ * @param topCount Number of top positions to retrieve (default: 3)
+ * @param includeGuests Whether to include guest users
+ * @returns Array of leaderboard entries for the previous week
+ */
+export async function getPreviousWeekTopPositions(
+  topCount: number = 3,
+  includeGuests: boolean = false
+): Promise<LeaderboardEntry[]> {
+  try {
+    const { week_start } = getPreviousWeekDates();
+    console.log('Fetching previous week leaderboard for week starting:', week_start);
+    let allScores: LeaderboardEntry[] = [];
+    
+    // Get regular users' scores - get all scores to properly handle tiebreakers
+    const weeklyScoresRef = collection(db, 'weekly_scores');
+    const weeklyScoresQuery = query(
+      weeklyScoresRef,
+      where('week_start', '==', week_start),
+      orderBy('score', 'desc')
+    );
+    
+    const weeklyScoresSnapshot = await getDocs(weeklyScoresQuery);
+    console.log('Found regular user scores for previous week:', weeklyScoresSnapshot.size);
+    
+    // Batch get all user documents for efficiency
+    const userRefs = weeklyScoresSnapshot.docs.map(scoreDoc => {
+      const data = scoreDoc.data() as WeeklyScore;
+      return doc(db, 'users', data.user_id);
+    });
+    
+    if (userRefs.length > 0) {
+      const userDocs = await Promise.all(userRefs.map(ref => getDoc(ref)));
+      
+      // Process regular users
+      weeklyScoresSnapshot.docs.forEach((scoreDoc, index) => {
+        const weeklyScore = scoreDoc.data() as WeeklyScore;
+        const userDoc = userDocs[index];
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          allScores.push({
+            user_id: weeklyScore.user_id,
+            username: userData.username || `User ${weeklyScore.user_id.substring(0, 4)}`,
+            score: weeklyScore.score,
+            rank: 0, // Will be assigned after sorting
+            games_played: weeklyScore.games_played,
+            games_won: weeklyScore.games_won,
+            best_streak: weeklyScore.best_streak,
+            win_rate: weeklyScore.games_played > 0 ? 
+              weeklyScore.games_won / weeklyScore.games_played : 0
+          });
+        }
+      });
+    }
+    
+    // Include guest users if requested
+    if (includeGuests) {
+      const guestScoresRef = collection(db, 'guest_weekly_scores');
+      const guestScoresQuery = query(
+        guestScoresRef,
+        where('week_start', '==', week_start),
+        orderBy('score', 'desc')
+      );
+      
+      const guestScoresSnapshot = await getDocs(guestScoresQuery);
+      console.log('Found guest scores for previous week:', guestScoresSnapshot.size);
+      
+      // Add guest scores
+      guestScoresSnapshot.docs.forEach(doc => {
+        const weeklyScore = doc.data() as WeeklyScore;
+        allScores.push({
+          user_id: weeklyScore.user_id,
+          username: `Guest ${weeklyScore.user_id.substring(0, 4)}`,
+          score: weeklyScore.score,
+          rank: 0, // Will be assigned after sorting
+          games_played: weeklyScore.games_played,
+          games_won: weeklyScore.games_won,
+          best_streak: weeklyScore.best_streak,
+          win_rate: weeklyScore.games_played > 0 ? 
+            weeklyScore.games_won / weeklyScore.games_played : 0
+        });
+      });
+    }
+    
+    // Apply tiebreaker logic and sort
+    allScores.sort((a, b) => {
+      // Primary sort by score (descending)
+      if (b.score !== a.score) return b.score - a.score;
+      
+      // Tiebreaker 1: Win rate (descending)
+      const aWinRate = a.win_rate || 0;
+      const bWinRate = b.win_rate || 0;
+      if (bWinRate !== aWinRate) return bWinRate - aWinRate;
+      
+      // Tiebreaker 2: Best streak (descending)
+      if (b.best_streak !== a.best_streak) return b.best_streak - a.best_streak;
+      
+      // Tiebreaker 3: Games played (ascending - fewer games is better)
+      return a.games_played - b.games_played;
+    });
+    
+    // Assign ranks after sorting
+    allScores.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
+    
+    // Return only the top entries
+    const topEntries = allScores.slice(0, topCount);
+    
+    console.log('Final previous week top entries:', topEntries.length);
+    return topEntries;
+  } catch (error) {
+    console.error('Error getting previous week top positions with tiebreakers:', error);
+    throw error;
   }
 } 

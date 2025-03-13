@@ -71,6 +71,7 @@ export interface LeaderboardEntry {
   games_played: number;
   games_won: number;
   best_streak: number;
+  win_rate?: number;
 }
 
 export type Theme = 'light' | 'dark';

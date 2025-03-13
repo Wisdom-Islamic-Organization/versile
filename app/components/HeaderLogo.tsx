@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet, Image, Platform } from 'react-native';
+import { TouchableOpacity, StyleSheet, Image, Platform, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 
 const HeaderLogo = () => {
@@ -8,10 +8,12 @@ const HeaderLogo = () => {
     router.push('/screens/IntroScreen');
   };
 
+  const platformWidth = Dimensions.get('window').width;
+  const isMobile = platformWidth < 768;
   return (
     <TouchableOpacity style={styles.container} onPress={handleLogoPress}>
       <Image 
-        source={require('../../assets/images/headerLogo.png')}
+        source={isMobile ? require('../../assets/images/icon.png') : require('../../assets/images/headerLogo.png')}
         style={styles.image}
       />
     </TouchableOpacity>
