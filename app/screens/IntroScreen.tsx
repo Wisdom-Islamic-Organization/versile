@@ -99,7 +99,7 @@ const IntroScreen = () => {
       <Text style={styles.title}>Versile</Text>
       <Text style={styles.subtitle}>Test your word skills in this exciting word game!</Text>
 
-      <Link href="https://wa.me/1234567890" asChild>
+      <Link href="https://wa.me/+919567276017?text=Hello%2C%20I'm%20contacting%20you%20as%20part%20of%20Versile." asChild>
         <Text style={styles.whatsappButtonText}>Contact Us Through WhatsApp</Text>
       </Link>
       
